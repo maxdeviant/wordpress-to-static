@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/maxdeviant/wordpress-to-static#readme",
   "dependencies": {
+    "array-uniq": "^1.0.3",
     "cheerio": "^0.22.0",
     "jsdom": "^9.5.0",
     "mkdirp-promise": "^3.0.1",

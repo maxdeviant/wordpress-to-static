@@ -1,5 +1,6 @@
 import path from 'path';
 import cheerio from 'cheerio';
+import arrayUniq from 'array-uniq';
 import { get } from './http';
 import { createDirectory, writeFile } from './io';
 
@@ -58,16 +59,19 @@ export default class Compiler {
         .get()
         .filter(url => this.isValidUrl(url))
         .filter(url => !this.isExternalUrl(url))
+        .filter(url => this.isHtmlUrl(url))
         .filter(url => !this.isPageCompleted(url))
         .filter(url => !this.isPageSkipped(url));
 
       this.queuedUrls.push(...urls);
+      this.queuedUrls = arrayUniq(this.queuedUrls);
 
-      while (urls.length > 0 && this.workerCount <= this.maxWorkers) {
-        const url = this.queuedUrls.shift();
-        await this.crawl(url);
+      let promise;
+      while (this.queuedUrls.length > 0 && this.workerCount < this.maxWorkers) {
+        promise = this.crawl();
       }
 
+      await promise;
       this.removeWorker()
     } catch (err) {
       console.error(err);
@@ -104,12 +108,12 @@ export default class Compiler {
     return this.completedPages.indexOf(url) !== -1;
   }
 
-  isPageSkipped(url) {
-    return this.skippedPages.indexOf(url) !== -1;
+  completePage(url) {
+    this.completedPages.push(url);
   }
 
-  completePage(url) {
-    this.completedPages[url] = true;
+  isPageSkipped(url) {
+    return this.skippedPages.indexOf(url) !== -1;
   }
 
   isValidUrl(url) {
@@ -122,6 +126,14 @@ export default class Compiler {
 
   isExternalUrl(url) {
     return !url.startsWith(this.testingUrl);
+  }
+
+  isHtmlUrl(url) {
+    const blacklist = [
+      '/wp-content/',
+      '/support/kb/'
+    ];
+    return blacklist.every(value => url.indexOf(value) === -1);
   }
 
   convertUrlToPath(url) {
