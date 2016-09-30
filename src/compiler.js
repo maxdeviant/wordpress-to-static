@@ -52,8 +52,11 @@ export default class Compiler {
 
       let contents = body;
       const contentType = headers['content-type'];
-      if (contentType === 'text/html') {
-        contents = minify(body);
+
+      if (contentType.indexOf('text/html') !== -1) {
+        contents = minify(body, {
+          collapseWhitespace: true
+        });
       }
 
       await this.save(url, contentType, contents);
