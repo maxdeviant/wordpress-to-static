@@ -12,12 +12,14 @@ export default class Compiler {
   skippedPages = [];
   completedAssets = [];
   skippedAssets = [];
+  blacklist = [];
 
-  constructor({ outputDirectory, testingUrl, productionUrl, themeUrl }) {
+  constructor({ outputDirectory, testingUrl, productionUrl, themeUrl, blacklist }) {
     this.outputDirectory = outputDirectory;
     this.testingUrl = testingUrl;
     this.productionUrl = productionUrl;
     this.themeUrl = themeUrl;
+    this.blacklist = blacklist;
     this.queuedUrls = [this.testingUrl];
   }
 
@@ -25,8 +27,7 @@ export default class Compiler {
     try {
       const startTime = process.hrtime();
       await this.crawl();
-      const [ elapsedSeconds, elapsedNanoseconds ] = process.hrtime(startTime);
-      console.log(`Done in ${elapsedSeconds}s ${elapsedNanoseconds}ns!`);
+      return process.hrtime(startTime);
     } catch (err) {
       console.error(err);
     }
@@ -59,7 +60,7 @@ export default class Compiler {
         .get()
         .filter(url => this.isValidUrl(url))
         .filter(url => !this.isExternalUrl(url))
-        .filter(url => this.isHtmlUrl(url))
+        .filter(url => !this.isBlacklistedUrl(url))
         .filter(url => !this.isPageCompleted(url))
         .filter(url => !this.isPageSkipped(url));
 
@@ -128,12 +129,8 @@ export default class Compiler {
     return !url.startsWith(this.testingUrl);
   }
 
-  isHtmlUrl(url) {
-    const blacklist = [
-      '/wp-content/',
-      '/support/kb/'
-    ];
-    return blacklist.every(value => url.indexOf(value) === -1);
+  isBlacklistedUrl(url) {
+    return this.blacklist.some(value => url.indexOf(value) !== -1);
   }
 
   convertUrlToPath(url) {

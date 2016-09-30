@@ -5,7 +5,14 @@ const compiler = new Compiler({
   outputDirectory: path.join(__dirname, '../dist'),
   testingUrl: 'http://remarksoftware.com',
   productionUrl: 'http://remarksoftware.com',
-  themeUrl: 'http://gravictest2/remark'
+  themeUrl: 'http://gravictest2/remark',
+  blacklist: [
+    '/wp-content/',
+    '/support/kb/'
+  ]
 });
 
-compiler.compile();
+(async () => {
+  const [ elapsedSeconds, elapsedNanoseconds ] = await compiler.compile();
+  console.log(`Done in ${elapsedSeconds}s ${elapsedNanoseconds}ns!`);
+})();
