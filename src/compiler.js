@@ -1,43 +1,10 @@
-import fs from 'fs';
 import path from 'path';
-import mkdirp from 'mkdirp-promise/lib/node6';
-import request from 'request';
 import cheerio from 'cheerio';
-
-export function writeFile(filePath, contents) {
-  return new Promise((resolve, reject) => {
-    const writeStream = fs.createWriteStream(filePath);
-    writeStream.on('finish', () => {
-      resolve();
-    });
-    writeStream.on('error', err => {
-      reject(err);
-    });
-    writeStream.write(contents);
-    writeStream.end();
-  });
-}
-
-export function get(url) {
-  return new Promise((resolve, reject) => {
-    request({
-      method: 'GET',
-      url,
-      headers: {
-        'User-Agent': 'request'
-      }
-    }, (err, response) => {
-      if (err) {
-        return reject(err);
-      }
-
-      return resolve(response);
-    });
-  })
-}
+import { get } from './http';
+import { createDirectory, writeFile } from './io';
 
 export default class Compiler {
-  completedPages = [];
+  completedPages = {};
   skippedPages = [];
   completedAssets = [];
   skippedAssets = [];
@@ -51,10 +18,12 @@ export default class Compiler {
 
   async compile() {
     try {
+      const startTime = process.hrtime();
       await this.crawl(this.testingUrl);
+      const [ elapsedSeconds, elapsedNanoseconds ] = process.hrtime(startTime);
+      console.log(`Done in ${elapsedSeconds}s ${elapsedNanoseconds}ns!`);
     } catch (err) {
       console.error(err);
-      throw err;
     }
   }
 
@@ -78,29 +47,47 @@ export default class Compiler {
 
       const $ = cheerio.load(body);
 
-      $('a')
+      const promises = $('a')
         .map((index, element) => $(element).attr('href'))
         .get()
         .filter(link => this.isValidUrl(link))
         .filter(link => !this.isExternalUrl(link))
-        .filter(link => this.completedPages.indexOf(link) === -1)
+        .filter(link => !this.isPageCompleted(link))
         .filter(link => this.skippedPages.indexOf(link) === -1)
-        .forEach(link => {
-          this.crawl(link);
+        .map(async link => {
+          await this.crawl(link);
         });
+
+        return Promise.all(promises);
     } catch (err) {
-      throw err;
+      console.error(err);
     }
   }
 
   async save(url, contentType, html) {
-    const outputDirectory = this.convertUrlToPath(url);
-    await mkdirp(outputDirectory);
+    try {
+      if (this.isPageCompleted(url)) {
+        return;
+      }
 
-    const outputFile = path.join(outputDirectory, 'index.html');
-    await writeFile(outputFile, html);
+      const outputDirectory = this.convertUrlToPath(url);
+      await createDirectory(outputDirectory);
 
-    this.completedPages.push(url);
+      const outputFile = path.join(outputDirectory, 'index.html');
+      await writeFile(outputFile, html);
+
+      this.completePage(url);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  isPageCompleted(url) {
+    return !!this.completedPages[url];
+  }
+
+  completePage(url) {
+    this.completedPages[url] = true;
   }
 
   isValidUrl(url) {
