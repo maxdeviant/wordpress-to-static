@@ -1,3 +1,13 @@
+#
+# WordPress-to-Static
+#
+
+/lib/
+
+#
+# Node
+#
+
 # Logs
 logs
 *.log
