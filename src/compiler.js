@@ -4,7 +4,10 @@ import { get } from './http';
 import { createDirectory, writeFile } from './io';
 
 export default class Compiler {
-  completedPages = {};
+  workerCount = 0;
+  maxWorkers = 100;
+  queuedUrls = [];
+  completedPages = [];
   skippedPages = [];
   completedAssets = [];
   skippedAssets = [];
@@ -14,12 +17,13 @@ export default class Compiler {
     this.testingUrl = testingUrl;
     this.productionUrl = productionUrl;
     this.themeUrl = themeUrl;
+    this.queuedUrls = [this.testingUrl];
   }
 
   async compile() {
     try {
       const startTime = process.hrtime();
-      await this.crawl(this.testingUrl);
+      await this.crawl();
       const [ elapsedSeconds, elapsedNanoseconds ] = process.hrtime(startTime);
       console.log(`Done in ${elapsedSeconds}s ${elapsedNanoseconds}ns!`);
     } catch (err) {
@@ -27,8 +31,10 @@ export default class Compiler {
     }
   }
 
-  async crawl(url) {
+  async crawl() {
     try {
+      this.addWorker();
+      const url = this.queuedUrls.shift();
       const response = await get(url);
       const {
         statusCode,
@@ -47,18 +53,22 @@ export default class Compiler {
 
       const $ = cheerio.load(body);
 
-      const promises = $('a')
+      const urls = $('a')
         .map((index, element) => $(element).attr('href'))
         .get()
-        .filter(link => this.isValidUrl(link))
-        .filter(link => !this.isExternalUrl(link))
-        .filter(link => !this.isPageCompleted(link))
-        .filter(link => this.skippedPages.indexOf(link) === -1)
-        .map(async link => {
-          await this.crawl(link);
-        });
+        .filter(url => this.isValidUrl(url))
+        .filter(url => !this.isExternalUrl(url))
+        .filter(url => !this.isPageCompleted(url))
+        .filter(url => !this.isPageSkipped(url));
 
-        return Promise.all(promises);
+      this.queuedUrls.push(...urls);
+
+      while (urls.length > 0 && this.workerCount <= this.maxWorkers) {
+        const url = this.queuedUrls.shift();
+        await this.crawl(url);
+      }
+
+      this.removeWorker()
     } catch (err) {
       console.error(err);
     }
@@ -82,8 +92,20 @@ export default class Compiler {
     }
   }
 
+  addWorker() {
+    this.workerCount++;
+  }
+
+  removeWorker() {
+    this.workerCount--;
+  }
+
   isPageCompleted(url) {
-    return !!this.completedPages[url];
+    return this.completedPages.indexOf(url) !== -1;
+  }
+
+  isPageSkipped(url) {
+    return this.skippedPages.indexOf(url) !== -1;
   }
 
   completePage(url) {
