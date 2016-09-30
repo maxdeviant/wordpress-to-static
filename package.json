@@ -23,6 +23,7 @@
   "dependencies": {
     "array-uniq": "^1.0.3",
     "cheerio": "^0.22.0",
+    "html-minifier": "^3.1.0",
     "mkdirp-promise": "^3.0.1",
     "request": "^2.75.0"
   },

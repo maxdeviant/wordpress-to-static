@@ -1,6 +1,7 @@
 import path from 'path';
-import cheerio from 'cheerio';
 import arrayUniq from 'array-uniq';
+import cheerio from 'cheerio';
+import { minify } from 'html-minifier';
 import { get } from './http';
 import { createDirectory, writeFile } from './io';
 
@@ -49,9 +50,13 @@ export default class Compiler {
         return;
       }
 
+      let contents = body;
       const contentType = headers['content-type'];
+      if (contentType === 'text/html') {
+        contents = minify(body);
+      }
 
-      await this.save(url, contentType, body);
+      await this.save(url, contentType, contents);
 
       const $ = cheerio.load(body);
 
